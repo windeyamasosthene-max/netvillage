@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetVillage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+
+    <div id="splash" class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
+        <h1 class="text-blue-500 text-5xl font-black mb-4">NETVILLAGE</h1>
+        <div class="animate-spin text-4xl">🌐</div>
+    </div>
+
+    <main class="p-4 max-w-md mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Gestion NetVillage</h1>
+        
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <input type="text" id="nom" placeholder="Nom et Prénom" class="w-full p-4 rounded-xl bg-gray-700 border border-gray-600">
+            <input type="number" id="montant" value="500" class="w-full p-4 rounded-xl bg-gray-700 border border-gray-600">
+            <button onclick="ajouterAbonne()" class="w-full bg-blue-600 py-4 rounded-xl font-bold text-lg hover:bg-blue-500">Enregistrer</button>
+        </div>
+
+        <div id="listeTableau" class="mt-8 bg-gray-800 p-4 rounded-2xl">
+            <h2 class="font-bold mb-4">Liste des Abonnés</h2>
+            <div id="contenuListe">Chargement...</div>
+        </div>
+    </main>
+
+    <script>
+        // Initialisation avec vos clés
+        const supabaseUrl = 'https://eedexpemakvmrqhzjwxj.supabase.co';
+        const supabaseKey = 'sb_publishable_WIFcEG6NdJsnAuq86Y5Z5g_KfXrL7kL';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Ajouter un abonné
+        async function ajouterAbonne() {
+            const nom = document.getElementById('nom').value;
+            const montant = document.getElementById('montant').value;
+            
+            const { error } = await supabase.from('abonnes').insert([{ nom, montant, mois: new Date().getMonth() }]);
+            
+            if (error) {
+                alert("Erreur lors de l'enregistrement : " + error.message);
+            } else {
+                alert("Succès !");
+                document.getElementById('nom').value = '';
+                chargerDonnees();
+            }
+        }
+
+        // Afficher la liste
+        async function chargerDonnees() {
+            const { data, error } = await supabase.from('abonnes').select('*');
+            if (error) {
+                document.getElementById('contenuListe').innerHTML = "Erreur chargement : " + error.message;
+                return;
+            }
+            
+            let html = '<table class="w-full text-left"><tr><th class="p-2">Nom</th><th class="p-2">Montant</th></tr>';
+            data.forEach(a => html += `<tr class="border-t border-gray-700"><td>${a.nom}</td><td>${a.montant}</td></tr>`);
+            document.getElementById('contenuListe').innerHTML = html + '</table>';
+        }
+
+        // Démarrage : ferme le splash et charge
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('splash').style.display = 'none';
+                chargerDonnees();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
