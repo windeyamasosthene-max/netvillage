@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetVillage</title>
+
+    <!-- ─── PWA META ─── -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NetVillage">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body, input, select, button { font-family: 'DM Sans', sans-serif; }
+        h1, h2, .syne { font-family: 'Syne', sans-serif; }
+
+        :root {
+            --bg:#0b1120; --bg-g1:rgba(37,99,235,.12); --bg-g2:rgba(6,182,212,.07);
+            --surface:rgba(255,255,255,.04); --surface2:rgba(255,255,255,.07);
+            --border:rgba(255,255,255,.09); --text:#f1f5ff;
+            --text-sub:rgba(241,245,255,.55); --text-muted:rgba(241,245,255,.32);
+            --input-bg:rgba(255,255,255,.06); --input-bd:rgba(255,255,255,.12);
+            --row-hover:rgba(59,130,246,.07); --row-border:rgba(255,255,255,.05);
+            --th-bg:rgba(59,130,246,.12); --header-bg:rgba(11,17,32,.9);
+            --opt-bg:#1e2d4a; --shadow:0 8px 32px rgba(0,0,0,.4);
+        }
+        html.light {
+            --bg:#eef2fc; --bg-g1:rgba(37,99,235,.07); --bg-g2:rgba(6,182,212,.05);
+            --surface:rgba(255,255,255,.85); --surface2:rgba(255,255,255,.95);
+            --border:rgba(0,0,0,.09); --text:#0f1a2e;
+            --text-sub:rgba(15,26,46,.6); --text-muted:rgba(15,26,46,.38);
+            --input-bg:rgba(255,255,255,.9); --input-bd:rgba(0,0,0,.13);
+            --row-hover:rgba(37,99,235,.05); --row-border:rgba(0,0,0,.06);
+            --th-bg:rgba(37,99,235,.06); --header-bg:rgba(238,242,252,.93);
+            --opt-bg:#fff; --shadow:0 4px 20px rgba(0,0,0,.1);
+        }
+
+        body {
+            background-color:var(--bg);
+            background-image:
+                radial-gradient(ellipse at 15% 0%,   var(--bg-g1) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 100%, var(--bg-g2) 0%, transparent 55%);
+            min-height:100vh; color:var(--text);
+            transition:background-color .35s, color .35s;
+        }
+
+        /* SPLASH */
+        #splash {
+            position:fixed; inset:0; background:#060d1c;
+            display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            z-index:999; transition:opacity .7s ease;
+        }
+        #splash.hide { opacity:0; pointer-events:none; }
+        .splash-logo {
+            font-family:'Syne',sans-serif; font-weight:800; font-size:2.8rem;
+            letter-spacing:-2px;
+            background:linear-gradient(135deg,#3b82f6,#06b6d4);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+        }
+        .globe { animation:spin 4s linear infinite; display:inline-block; font-size:4rem;
+                 filter:drop-shadow(0 0 18px rgba(59,130,246,.7)); }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .loader-track { width:180px; height:3px; background:rgba(255,255,255,.08);
+                        border-radius:9px; overflow:hidden; margin-top:36px; }
+        .loader-fill  { height:100%; width:0; border-radius:9px;
+                        background:linear-gradient(90deg,#3b82f6,#06b6d4);
+                        animation:load 2.9s ease forwards; }
+        @keyframes load { to { width:100%; } }
+
+        /* BANNER INSTALLER */
+        #installBanner {
+            display:none; position:fixed; bottom:0; left:0; right:0; z-index:60;
+            background:linear-gradient(135deg,#1e3a8a,#1e40af);
+            border-top:1px solid rgba(255,255,255,.15);
+            padding:14px 18px; align-items:center; gap:12px;
+            box-shadow:0 -4px 24px rgba(0,0,0,.4);
+            animation: slideUp .4s ease;
+        }
+        #installBanner.show { display:flex; }
+        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        .install-icon { font-size:2rem; flex-shrink:0; }
+        .install-text { flex:1; }
+        .install-text strong { display:block; font-size:.9rem; color:#fff; font-weight:700; }
+        .install-text span   { font-size:.75rem; color:rgba(255,255,255,.65); }
+        .btn-install {
+            background:#fff; color:#1d4ed8; font-weight:700; font-size:.82rem;
+            border:none; border-radius:10px; padding:9px 16px; cursor:pointer;
+            white-space:nowrap; transition:transform .15s;
+        }
+        .btn-install:hover { transform:scale(1.04); }
+        .btn-close-banner {
+            background:none; border:none; color:rgba(255,255,255,.5);
+            font-size:1.1rem; cursor:pointer; padding:4px; flex-shrink:0;
+        }
+
+        /* HEADER */
+        header {
+            position:sticky; top:0; z-index:50;
+            background:var(--header-bg); backdrop-filter:blur(18px);
+            border-bottom:1px solid var(--border);
+            padding:11px 16px;
+            display:flex; align-items:center; justify-content:space-between;
+            transition:background .35s, border-color .35s;
+        }
+        .live-clock { font-size:.68rem; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+        #themeBtn {
+            width:38px; height:38px; border-radius:12px; cursor:pointer;
+            border:1px solid var(--border); background:var(--input-bg);
+            font-size:1.1rem; display:flex; align-items:center; justify-content:center;
+            transition:transform .2s, background .25s;
+        }
+        #themeBtn:hover { transform:scale(1.12); }
+
+        /* CARD */
+        .card {
+            background:var(--surface); border:1px solid var(--border);
+            backdrop-filter:blur(14px); border-radius:20px;
+            box-shadow:var(--shadow); transition:background .35s, border-color .35s;
+        }
+
+        /* INPUTS */
+        .inp {
+            width:100%; padding:13px 15px; border-radius:14px;
+            background:var(--input-bg); border:1px solid var(--input-bd);
+            color:var(--text); font-size:.88rem; outline:none;
+            transition:border-color .2s, box-shadow .2s, background .25s;
+        }
+        .inp:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.18); }
+        .inp option { background:var(--opt-bg); color:var(--text); }
+        .lbl { display:block; font-size:.67rem; font-weight:600; letter-spacing:.06em;
+               color:var(--text-muted); margin-bottom:5px; }
+
+        /* BUTTONS */
+        .btn { border:none; cursor:pointer; font-family:'DM Sans',sans-serif; font-weight:700;
+               border-radius:16px; transition:transform .18s, box-shadow .18s; color:#fff; }
+        .btn:hover  { transform:translateY(-2px); }
+        .btn:active { transform:translateY(0); }
+        .btn-blue  { background:linear-gradient(135deg,#2563eb,#0891b2); box-shadow:0 4px 18px rgba(37,99,235,.35); }
+        .btn-blue:hover { box-shadow:0 8px 28px rgba(37,99,235,.5); }
+        .btn-green { background:linear-gradient(135deg,#16a34a,#059669); box-shadow:0 4px 18px rgba(22,163,74,.35); }
+        .btn-green:hover { box-shadow:0 8px 28px rgba(22,163,74,.5); }
+        .btn-red   { background:linear-gradient(135deg,#dc2626,#b91c1c); box-shadow:0 4px 18px rgba(220,38,38,.3); }
+        .btn-back  { background:none; border:none; cursor:pointer; font-size:.85rem;
+                     color:var(--text-muted); display:flex; align-items:center; gap:6px;
+                     padding:8px 0; transition:color .15s; }
+        .btn-back:hover { color:var(--text); }
+
+        /* STATS */
+        .stat { background:var(--surface2); border:1px solid var(--border);
+                border-radius:16px; padding:13px 8px; text-align:center;
+                transition:background .35s, border-color .35s; }
+        .stat-val { font-family:'Syne',sans-serif; font-weight:700; font-size:1.5rem; color:var(--text); }
+        .stat-lbl { font-size:.6rem; font-weight:600; letter-spacing:.06em; color:var(--text-muted); margin-top:2px; }
+
+        /* TABLE */
+        table { width:100%; border-collapse:collapse; }
+        thead tr { background:var(--th-bg); }
+        thead th { padding:9px 8px; text-align:left; font-size:.6rem; font-weight:700;
+                   letter-spacing:.07em; color:var(--text-muted); white-space:nowrap; }
+        tbody tr { border-bottom:1px solid var(--row-border); transition:background .12s; }
+        tbody tr:hover { background:var(--row-hover); }
+        tbody td { padding:10px 8px; font-size:.8rem; color:var(--text); vertical-align:middle; }
+
+        /* BADGES STATUT */
+        .badge { display:inline-block; padding:4px 9px; border-radius:999px;
+                 font-size:.63rem; font-weight:700; white-space:nowrap; }
+        .b-ok   { background:rgba(22,163,74,.15);  color:#22c55e; border:1px solid rgba(22,163,74,.3); }
+        .b-warn { background:rgba(234,179,8,.15);  color:#facc15; border:1px solid rgba(234,179,8,.3); }
+        .b-exp  { background:rgba(220,38,38,.15);  color:#f87171; border:1px solid rgba(220,38,38,.3); }
+        html.light .b-ok   { color:#15803d; }
+        html.light .b-warn { color:#a16207; }
+        html.light .b-exp  { color:#b91c1c; }
+
+        /* DELETE */
+        .del-btn { width:28px; height:28px; border-radius:8px; border:none; cursor:pointer;
+                   background:rgba(220,38,38,.15); color:#f87171; font-size:.75rem;
+                   display:flex; align-items:center; justify-content:center;
+                   margin:auto; transition:background .15s; }
+        .del-btn:hover { background:rgba(220,38,38,.35); }
+
+        /* MODAL */
+        .overlay { position:fixed; inset:0; background:rgba(0,0,0,.72);
+                   backdrop-filter:blur(5px); z-index:80;
+                   display:flex; align-items:center; justify-content:center; padding:20px; }
+        .overlay.hidden { display:none; }
+        .modal-box { background:var(--surface2); border:1px solid var(--border);
+                     border-radius:22px; padding:26px 22px; text-align:center;
+                     max-width:290px; width:100%;
+                     animation:popIn .3s cubic-bezier(.34,1.56,.64,1);
+                     box-shadow:var(--shadow); }
+        @keyframes popIn { from{transform:scale(.72);opacity:0} to{transform:scale(1);opacity:1} }
+
+        /* TOAST */
+        #toast { position:fixed; bottom:80px; left:50%; z-index:100;
+                 transform:translateX(-50%) translateY(90px);
+                 padding:11px 22px; border-radius:16px;
+                 font-size:.875rem; font-weight:600; color:#fff;
+                 display:flex; align-items:center; gap:10px; white-space:nowrap;
+                 pointer-events:none; backdrop-filter:blur(14px);
+                 border:1px solid rgba(255,255,255,.15);
+                 transition:transform .38s cubic-bezier(.34,1.56,.64,1), opacity .38s;
+                 opacity:0; }
+        #toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+        /* PAGES */
+        .page { display:none; animation:slideUp2 .25s ease; }
+        .page.active { display:block; }
+        @keyframes slideUp2 { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+        .empty { text-align:center; padding:44px 20px; color:var(--text-muted); }
+        .empty-icon { font-size:2.4rem; margin-bottom:10px; }
+        ::-webkit-scrollbar { width:3px; }
+        ::-webkit-scrollbar-thumb { background:rgba(59,130,246,.4); border-radius:2px; }
+        main { max-width:480px; margin:0 auto; padding:16px 15px 100px; }
+    </style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+    <div class="globe">🌐</div>
+    <p class="splash-logo" style="margin-top:16px">NETVILLAGE</p>
+    <p style="color:rgba(255,255,255,.38);font-size:.8rem;margin-top:5px">Gestion des abonnés internet</p>
+    <div class="loader-track"><div class="loader-fill"></div></div>
+</div>
+
+<!-- BANNER INSTALLER PWA -->
+<div id="installBanner">
+    <div class="install-icon">📲</div>
+    <div class="install-text">
+        <strong>Installer NetVillage</strong>
+        <span>Accès rapide depuis l'écran d'accueil</span>
+    </div>
+    <button class="btn-install" onclick="installApp()">Installer</button>
+    <button class="btn-close-banner" onclick="closeBanner()">✕</button>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><span id="toastIcon">✅</span><span id="toastMsg">OK</span></div>
+
+<!-- MODAL SUPPRESSION -->
+<div id="modalDel" class="overlay hidden">
+    <div class="modal-box">
+        <div style="font-size:3rem;margin-bottom:10px">🗑️</div>
+        <h3 class="syne" style="font-size:1.05rem;margin-bottom:7px;color:var(--text)">Supprimer ?</h3>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:22px">Cette action est irréversible.</p>
+        <div style="display:flex;gap:10px">
+            <button class="btn" onclick="cancelDel()"
+                style="flex:1;padding:12px;background:var(--input-bg);border:1px solid var(--border);color:var(--text)">
+                Annuler
+            </button>
+            <button class="btn btn-red" onclick="confirmDel()" style="flex:1;padding:12px">Supprimer</button>
+        </div>
+    </div>
+</div>
+
+<!-- HEADER -->
+<header>
+    <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.2rem">🌐</span>
+        <span class="syne" style="font-size:1rem;font-weight:800;letter-spacing:-.5px;color:var(--text)">NetVillage</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+        <span class="live-clock" id="liveClock"></span>
+        <button id="themeBtn" onclick="toggleTheme()" title="Thème clair / sombre">🌙</button>
+    </div>
+</header>
+
+<main>
+
+    <!-- DASHBOARD -->
+    <div id="pgDash" class="page active" style="padding-top:8px">
+        <!-- ligne 1 : Total + Valides -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div class="stat" id="statTotal">
+                <div style="font-size:1.6rem;margin-bottom:3px">👥</div>
+                <div class="stat-val" id="valTotal">—</div>
+                <div class="stat-lbl">TOTAL</div>
+            </div>
+            <div class="stat" id="statValides">
+                <div style="font-size:1.6rem;margin-bottom:3px">✅</div>
+                <div class="stat-val" id="valValides" style="color:#22c55e">—</div>
+                <div class="stat-lbl">VALIDES</div>
+            </div>
+        </div>
+        <!-- ligne 2 : Recettes pleine largeur -->
+        <div class="stat" id="statRecettes" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
+            <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:1.8rem">💰</span>
+                <div>
+                    <div class="stat-lbl" style="text-align:left;margin-bottom:2px">RECETTES TOTALES</div>
+                    <div class="stat-val" id="valFcfa" style="color:#facc15;font-size:1.3rem;text-align:left">—</div>
+                </div>
+            </div>
+            <div style="font-size:.75rem;font-weight:700;color:rgba(250,204,21,.6);letter-spacing:.04em">FCFA</div>
+        </div>
+        <button class="btn btn-blue" onclick="goTo('pgForm')"
+            style="width:100%;padding:22px;font-size:1rem;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:10px">
+            <span style="font-size:1.3rem">➕</span> Nouvelle Inscription
+        </button>
+        <button class="btn btn-green" onclick="goTo('pgList');loadList()"
+            style="width:100%;padding:22px;font-size:1rem;display:flex;align-items:center;justify-content:center;gap:10px">
+            <span style="font-size:1.3rem">📋</span> Mes Abonnés
+        </button>
+    </div>
+
+    <!-- FORMULAIRE -->
+    <div id="pgForm" class="page">
+        <button class="btn-back" onclick="goTo('pgDash')">← Retour</button>
+        <div class="card" style="padding:20px;margin-top:8px">
+            <h2 class="syne" style="font-size:1.15rem;margin-bottom:20px;color:var(--text)">Nouvelle Inscription</h2>
+
+            <label class="lbl">MOIS D'INSCRIPTION</label>
+            <select id="fMois" class="inp" style="margin-bottom:13px"></select>
+
+            <label class="lbl">DATE DE PAIEMENT</label>
+            <input type="date" id="fDate" class="inp" style="margin-bottom:13px">
+
+            <label class="lbl">NOM ET PRÉNOM</label>
+            <input type="text" id="fNom" placeholder="Ex: Jean Dupont" class="inp" style="margin-bottom:13px" autocomplete="off">
+
+            <label class="lbl">MONTANT (FCFA)</label>
+            <input type="number" id="fMontant" value="500" class="inp" style="margin-bottom:20px">
+
+            <button id="btnSave" class="btn btn-blue" onclick="saveClient()" style="width:100%;padding:15px;font-size:.93rem">
+                Enregistrer l'abonné
+            </button>
+        </div>
+    </div>
+
+    <!-- LISTE -->
+    <div id="pgList" class="page">
+        <button class="btn-back" onclick="goTo('pgDash')">← Retour</button>
+        <div class="card" style="padding:14px;margin-top:8px;margin-bottom:11px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+                <h2 class="syne" style="font-size:1.05rem;color:var(--text)">Historique Abonnés</h2>
+                <span id="cntBadge" style="font-size:.65rem;font-weight:700;
+                    background:rgba(59,130,246,.15);color:#60a5fa;
+                    border:1px solid rgba(59,130,246,.28);
+                    padding:3px 9px;border-radius:999px">0</span>
+            </div>
+            <select id="fFiltMois" class="inp" onchange="loadList()" style="font-size:.86rem;padding:10px 13px"></select>
+        </div>
+
+        <div id="listStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:11px"></div>
+
+        <div class="card" style="overflow:hidden;margin-bottom:13px">
+            <div id="tblWrap" style="overflow-x:auto"></div>
+        </div>
+
+        <button class="btn btn-red" onclick="exportPDF()"
+            style="width:100%;padding:15px;font-size:.93rem;display:flex;align-items:center;justify-content:center;gap:8px">
+            <span>📄</span> Exporter PDF
+        </button>
+    </div>
+
+</main>
+
+<script>
+// ─── SUPABASE ───
+const db = window.supabase.createClient(
+    'https://eedexpemakvmrqhzjwxj.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlZGV4cGVtYWt2bXJxaHpqd3hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTQyNjcsImV4cCI6MjA5NTgzMDI2N30.IpDVhHZRPlxFY8kHCYLVAtwwDXQxsPPYSp5gqaTgDCQ'
+);
+
+const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin",
+              "Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const DUREE = 30;
+const moisActuel = new Date().getMonth();
+let delTarget = null;
+let deferredPrompt = null;  // pour le bouton Installer
+
+// ─── HORLOGE ───
+function majHorloge() {
+    const n = new Date();
+    document.getElementById('liveClock').textContent =
+        n.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})
+        + ' · ' + n.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+majHorloge();
+setInterval(majHorloge, 30000);
+
+// ─── THEME ───
+function toggleTheme() {
+    const isLight = document.documentElement.classList.toggle('light');
+    document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+    localStorage.setItem('nv_theme', isLight ? 'light' : 'dark');
+}
+(function() {
+    if (localStorage.getItem('nv_theme') === 'light') {
+        document.documentElement.classList.add('light');
+        document.getElementById('themeBtn').textContent = '☀️';
+    }
+})();
+
+// ─── SELECTS MOIS ───
+['fMois','fFiltMois'].forEach(id => {
+    const sel = document.getElementById(id);
+    MOIS.forEach((m,i) => {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = m;
+        if (i === moisActuel) o.selected = true;
+        sel.appendChild(o);
+    });
+});
+document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+
+// ─── PWA : CAPTURER L'ÉVÉNEMENT INSTALL ───
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Afficher la bannière après 2s
+    setTimeout(() => document.getElementById('installBanner').classList.add('show'), 2000);
+});
+
+window.addEventListener('appinstalled', () => {
+    document.getElementById('installBanner').classList.remove('show');
+    toast('NetVillage installé ! 🎉');
+});
+
+function installApp() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(result => {
+        if (result.outcome === 'accepted') {
+            document.getElementById('installBanner').classList.remove('show');
+        }
+        deferredPrompt = null;
+    });
+}
+function closeBanner() {
+    document.getElementById('installBanner').classList.remove('show');
+    deferredPrompt = null;
+}
+
+// ─── SERVICE WORKER ───
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+}
+
+// ─── SPLASH ───
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        const s = document.getElementById('splash');
+        s.classList.add('hide');
+        setTimeout(() => s.remove(), 700);
+        loadDashStats();
+    }, 3100);
+});
+
+// ─── TOAST ───
+function toast(msg, type='ok') {
+    const el = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent  = msg;
+    document.getElementById('toastIcon').textContent = type === 'ok' ? '✅' : '❌';
+    el.style.background = type === 'ok' ? 'rgba(22,163,74,.92)' : 'rgba(220,38,38,.92)';
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ─── NAVIGATION ───
+function goTo(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+    if (pageId === 'pgDash') loadDashStats();
+}
+
+// ─── STATUT (basé heure téléphone) ───
+function getStatut(datePaiement) {
+    if (!datePaiement) return { label:'Inconnu', cls:'badge b-exp', jours:null };
+    const exp = new Date(datePaiement);
+    exp.setDate(exp.getDate() + DUREE);
+    const jours = Math.ceil((exp - new Date()) / 86400000);
+    if (jours > 5)  return { label:'✅ Valide',        cls:'badge b-ok',   jours };
+    if (jours >= 0) return { label:`⚠️ ${jours}j`,     cls:'badge b-warn', jours };
+                    return { label:'🔴 Expiré',          cls:'badge b-exp',  jours };
+}
+
+// ─── DASHBOARD STATS ───
+async function loadDashStats() {
+    const { data } = await db.from('abonnes').select('*');
+    if (!data) return;
+
+    let v = 0, totalFcfa = 0;
+    data.forEach(c => {
+        const s = getStatut(c.date_paiement);
+        if (s.jours !== null && s.jours >= 0) v++;
+        totalFcfa += parseFloat(c.montant || 0);
+    });
+
+    document.getElementById('valTotal').textContent   = data.length;
+    document.getElementById('valValides').textContent = v;
+    document.getElementById('valFcfa').textContent    = totalFcfa.toLocaleString('fr-FR');
+}
+
+// ─── ENREGISTRER ABONNÉ ───
+async function saveClient() {
+    const nom     = document.getElementById('fNom').value.trim();
+    const mois    = parseInt(document.getElementById('fMois').value);
+    const montant = parseFloat(document.getElementById('fMontant').value);
+    const date    = document.getElementById('fDate').value;
+
+    if (!nom)             { toast('Veuillez saisir un nom.', 'err'); return; }
+    if (!date)            { toast('Veuillez choisir une date.', 'err'); return; }
+    if (!montant || montant <= 0) { toast('Montant invalide.', 'err'); return; }
+
+    const btn = document.getElementById('btnSave');
+    btn.textContent = '⏳ Enregistrement…'; btn.disabled = true;
+
+    const { error } = await db.from('abonnes').insert([{ nom, mois, montant, date_paiement: date }]);
+
+    btn.textContent = "Enregistrer l'abonné"; btn.disabled = false;
+
+    if (error) { toast('Erreur : ' + error.message, 'err'); return; }
+    document.getElementById('fNom').value  = '';
+    document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+    toast('Abonné enregistré !');
+    goTo('pgDash');
+}
+
+// ─── LISTE / HISTORIQUE ───
+async function loadList() {
+    const filtre = parseInt(document.getElementById('fFiltMois').value);
+    const wrap   = document.getElementById('tblWrap');
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">⏳</div>Chargement…</div>`;
+
+    const { data, error } = await db.from('abonnes').select('*').eq('mois', filtre).order('nom');
+    if (error) { wrap.innerHTML = `<div class="empty" style="color:#f87171">Erreur de chargement</div>`; return; }
+
+    const cl = data || [];
+    document.getElementById('cntBadge').textContent = cl.length + ' abonné' + (cl.length > 1 ? 's' : '');
+
+    let nOk=0, nW=0, nE=0;
+    cl.forEach(c => { const s=getStatut(c.date_paiement); s.jours>5?nOk++:s.jours>=0?nW++:nE++; });
+
+    document.getElementById('listStats').innerHTML = `
+        <div class="stat"><div style="font-size:1.1rem;margin-bottom:2px">✅</div>
+            <div class="stat-val" style="font-size:1.1rem;color:#22c55e">${nOk}</div>
+            <div class="stat-lbl">VALIDES</div></div>
+        <div class="stat"><div style="font-size:1.1rem;margin-bottom:2px">⚠️</div>
+            <div class="stat-val" style="font-size:1.1rem;color:#facc15">${nW}</div>
+            <div class="stat-lbl">BIENTÔT</div></div>
+        <div class="stat"><div style="font-size:1.1rem;margin-bottom:2px">🔴</div>
+            <div class="stat-val" style="font-size:1.1rem;color:#f87171">${nE}</div>
+            <div class="stat-lbl">EXPIRÉS</div></div>`;
+
+    if (cl.length === 0) {
+        wrap.innerHTML = `<div class="empty"><div class="empty-icon">📭</div>Aucun abonné ce mois</div>`;
+        return;
+    }
+
+    let html = `<table>
+        <thead><tr>
+            <th style="padding-left:12px">#</th>
+            <th>NOM</th>
+            <th>DATE PAIEM.</th>
+            <th>DATE EXPIR.</th>
+            <th style="text-align:center">STATUT</th>
+            <th style="text-align:center">✕</th>
+        </tr></thead><tbody>`;
+
+    cl.forEach((c, i) => {
+        const s = getStatut(c.date_paiement);
+        const dp = c.date_paiement
+            ? new Date(c.date_paiement).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'2-digit'})
+            : '—';
+        let de = '—';
+        if (c.date_paiement) {
+            const exp = new Date(c.date_paiement);
+            exp.setDate(exp.getDate() + DUREE);
+            de = exp.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'2-digit'});
+        }
+        html += `<tr>
+            <td style="padding-left:12px;font-size:.7rem;color:var(--text-muted);font-weight:600">${i+1}</td>
+            <td>
+                <div style="font-weight:600;font-size:.82rem">${esc(c.nom)}</div>
+                <div style="font-size:.62rem;color:var(--text-muted);margin-top:2px">${MOIS[c.mois]}</div>
+            </td>
+            <td style="font-size:.74rem;color:var(--text-sub);white-space:nowrap">${dp}</td>
+            <td style="font-size:.74rem;color:var(--text-sub);white-space:nowrap">${de}</td>
+            <td style="text-align:center"><span class="${s.cls}">${s.label}</span></td>
+            <td style="text-align:center"><button class="del-btn" onclick="askDel('${c.id}')">✕</button></td>
+        </tr>`;
+    });
+    html += `</tbody></table>`;
+    wrap.innerHTML = html;
+}
+
+// ─── SUPPRESSION ───
+function askDel(id) { delTarget=id; document.getElementById('modalDel').classList.remove('hidden'); }
+function cancelDel() { delTarget=null; document.getElementById('modalDel').classList.add('hidden'); }
+async function confirmDel() {
+    document.getElementById('modalDel').classList.add('hidden');
+    if (!delTarget) return;
+    const { error } = await db.from('abonnes').delete().eq('id', delTarget);
+    delTarget = null;
+    if (error) { toast('Erreur suppression','err'); return; }
+    toast('Abonné supprimé'); loadList();
+}
+
+// ─── EXPORT PDF ───
+async function exportPDF() {
+    const filtre = parseInt(document.getElementById('fFiltMois').value);
+    const nomMois = MOIS[filtre];
+    const { data, error } = await db.from('abonnes').select('*').eq('mois', filtre).order('nom');
+    if (error || !data) { toast('Erreur export','err'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFillColor(37,99,235); doc.rect(0,0,210,30,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(255,255,255);
+    doc.text('NETVILLAGE', 14, 18);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text(`Rapport ${nomMois} ${new Date().getFullYear()}`, 14, 26);
+
+    const now = new Date();
+    doc.setTextColor(80,80,80); doc.setFontSize(8.5);
+    doc.text(`Généré le ${now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})} à ${now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`, 14, 38);
+    doc.text(`${data.length} abonné(s) — ${nomMois}`, 14, 44);
+
+    const rows = data.map((c,i) => {
+        const s  = getStatut(c.date_paiement);
+        const dp = c.date_paiement ? new Date(c.date_paiement).toLocaleDateString('fr-FR') : '—';
+        let de = '—';
+        if (c.date_paiement) { const e=new Date(c.date_paiement); e.setDate(e.getDate()+DUREE); de=e.toLocaleDateString('fr-FR'); }
+        return [i+1, c.nom, MOIS[c.mois], dp, de, s.jours>5?'Valide':s.jours>=0?'Bientôt':'Expiré'];
+    });
+
+    doc.autoTable({
+        startY:50,
+        head:[['#','Nom','Mois','Date Paiement','Date Expir.','Statut']],
+        body:rows,
+        styles:{fontSize:9,cellPadding:4},
+        headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'},
+        alternateRowStyles:{fillColor:[245,247,255]},
+        columnStyles:{0:{cellWidth:10},5:{halign:'center',fontStyle:'bold'}},
+        didParseCell(d) {
+            if (d.column.index===5 && d.section==='body') {
+                d.cell.styles.textColor =
+                    d.cell.raw==='Valide'  ? [22,163,74] :
+                    d.cell.raw==='Bientôt' ? [161,98,7]  : [220,38,38];
+            }
+        }
+    });
+
+    const nb = doc.internal.getNumberOfPages();
+    for (let p=1;p<=nb;p++) {
+        doc.setPage(p); doc.setFontSize(7.5); doc.setTextColor(190,190,190);
+        doc.text(`NetVillage — Page ${p}/${nb}`, 105, doc.internal.pageSize.height-7, {align:'center'});
+    }
+    doc.save(`NetVillage_${nomMois}_${new Date().getFullYear()}.pdf`);
+    toast('PDF téléchargé !');
+}
+
+function esc(str) { const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+</script>
+</body>
+</html>
